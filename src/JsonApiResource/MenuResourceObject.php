@@ -14,7 +14,7 @@ class MenuResourceObject extends ResourceObject {
     $cacheability->addCacheableDependency(NULL);
 
     $fields = static::extractFieldsFromEntity($resource_type, $entity);
-    $fields['menu_items'] = $menuItems;
+    $fields['items'] = $menuItems;
 
     parent::__construct(
       $cacheability,

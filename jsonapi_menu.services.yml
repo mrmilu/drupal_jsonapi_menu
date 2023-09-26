@@ -1,0 +1,4 @@
+services:
+  plugin.manager.jsonapi_menu.menu_items_format:
+    class: Drupal\jsonapi_menu\Plugin\MenuItemsFormatManager
+    parent: default_plugin_manager

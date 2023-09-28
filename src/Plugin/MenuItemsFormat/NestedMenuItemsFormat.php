@@ -5,10 +5,12 @@ namespace Drupal\jsonapi_menu\Plugin\MenuItemsFormat;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Field\FieldConfigInterface;
 use Drupal\Core\GeneratedUrl;
+use Drupal\Core\Menu\MenuLinkInterface;
 use Drupal\Core\Menu\MenuLinkTreeElement;
 use Drupal\Core\Menu\MenuTreeParameters;
 use Drupal\jsonapi\JsonApiResource\ResourceObject;
 use Drupal\jsonapi_menu\Plugin\MenuItemsFormatBase;
+use Drupal\menu_link_content\MenuLinkContentInterface;
 use Drupal\system\MenuInterface;
 
 /**
@@ -132,6 +134,8 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
     $cache->addCacheableDependency($url);
 
     $id = $menuLink->getPluginId();
+    [$plugin, $menuLinkEntityId] = explode(':', $id);
+
     $data = [
       'id' => $id,
       'description' => $menuLink->getDescription(),
@@ -149,22 +153,15 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
       'title' => (string) $menuLink->getTitle(),
       'url' => $url->getGeneratedUrl(),
       'weight' => (int) $menuLink->getWeight(),
+      'uri' => NULL,
     ];
 
-    if ($this->moduleHandler->moduleExists('menu_item_extras')) {
-      [$plugin, $menuLinkEntityId] = explode(':', $id);
+    if ($plugin === 'menu_link_content') {
+      /* @var $menuLinkContentEntity MenuLinkContentInterface */
+      $menuLinkContentEntity = $this->entityRepository->loadEntityByUuid('menu_link_content', $menuLinkEntityId);
 
-      if ($plugin === 'menu_link_content') {
-        $menuItemEntity = $this->entityRepository->loadEntityByUuid($plugin, $menuLinkEntityId);
-        $resourceType = $this->resourceTypeRepository->get('menu_link_content', $menuLink->getMenuName());
-        $resourceObject = ResourceObject::createFromEntity($resourceType, $menuItemEntity);
-        $fields = $this->getMenuFields($menuLink->getMenuName());
-        foreach ($fields as $key) {
-          $field = $menuItemEntity->get($key);
-          $normalization = $this->serializer->normalize($field, 'api_json', ['resource_object' => $resourceObject]);
-          $data[$key] = $normalization->getNormalization();
-        }
-      }
+      $this->addMenuLinkContentFieldValues($menuLink, $menuLinkContentEntity, $data);
+      $data['uri'] = $menuLinkContentEntity->link->uri;
     }
 
     return $data;
@@ -204,5 +201,18 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
       }
     }
     return $fieldNames;
+  }
+
+  protected function addMenuLinkContentFieldValues(MenuLinkInterface $menuLink, MenuLinkContentInterface $menuLinkContentEntity, &$data) {
+    if ($this->moduleHandler->moduleExists('menu_item_extras')) {
+      $resourceType = $this->resourceTypeRepository->get('menu_link_content', $menuLink->getMenuName());
+      $resourceObject = ResourceObject::createFromEntity($resourceType, $menuLinkContentEntity);
+      $fields = $this->getMenuFields($menuLink->getMenuName());
+      foreach ($fields as $key) {
+        $field = $menuLinkContentEntity->get($key);
+        $normalization = $this->serializer->normalize($field, 'api_json', ['resource_object' => $resourceObject]);
+        $data[$key] = $normalization->getNormalization();
+      }
+    }
   }
 }

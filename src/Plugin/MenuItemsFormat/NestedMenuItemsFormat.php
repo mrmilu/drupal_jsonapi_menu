@@ -131,7 +131,9 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
     assert($url instanceof GeneratedUrl);
     $cache->addCacheableDependency($url);
 
+    $id = $menuLink->getPluginId();
     $data = [
+      'id' => $id,
       'description' => $menuLink->getDescription(),
       'enabled' => $menuLink->isEnabled(),
       'expanded' => $menuLink->isExpanded(),
@@ -150,7 +152,6 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
     ];
 
     if ($this->moduleHandler->moduleExists('menu_item_extras')) {
-      $id = $menuLink->getPluginId();
       [$plugin, $menuLinkEntityId] = explode(':', $id);
 
       if ($plugin === 'menu_link_content') {

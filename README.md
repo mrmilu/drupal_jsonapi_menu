@@ -9,4 +9,7 @@
 - Supports `menu_item_extras` module.
 
 ## TODO
-- Add compatibility with and system created menu items in `json_api` format
+- Add compatibility with system created menu items in `json_api` format
+
+### Authors
+By [Mr. Milú](https://mrmilu.com)

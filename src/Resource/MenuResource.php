@@ -3,6 +3,7 @@
 namespace Drupal\jsonapi_menu\Resource;
 
 use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\jsonapi\CacheableResourceResponse;
 use Drupal\jsonapi_menu\Plugin\MenuItemsFormatManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
@@ -10,7 +11,6 @@ use Drupal\jsonapi\JsonApiResource\JsonApiDocumentTopLevel;
 use Drupal\jsonapi\JsonApiResource\LinkCollection;
 use Drupal\jsonapi\JsonApiResource\NullIncludedData;
 use Drupal\jsonapi\JsonApiResource\ResourceObjectData;
-use Drupal\jsonapi\ResourceResponse;
 use Drupal\jsonapi_menu\JsonApiResource\MenuResourceObject;
 use Drupal\jsonapi_resources\Resource\ResourceBase;
 use Drupal\system\MenuInterface;
@@ -43,13 +43,13 @@ final class MenuResource extends ResourceBase implements ContainerInjectionInter
    * @param \Drupal\system\MenuInterface $menu
    *   The menu.
    *
-   * @return \Drupal\jsonapi\ResourceResponse
+   * @return \Drupal\jsonapi\CacheableResourceResponse
    *   The response.
    *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    */
-  public function process(Request $request, MenuInterface $menu): ResourceResponse {
+  public function process(Request $request, MenuInterface $menu): CacheableResourceResponse {
     $includes = new NullIncludedData();
     $meta = [];
     $links = new LinkCollection([]);
@@ -57,7 +57,7 @@ final class MenuResource extends ResourceBase implements ContainerInjectionInter
     $resourceObject = $this->getMenuResourceObject($menu);
     $data = new ResourceObjectData([$resourceObject], 1);
     $document = new JsonApiDocumentTopLevel($data, $includes, $links, $meta);
-    return new ResourceResponse($document, 200, []);
+    return new CacheableResourceResponse($document, 200, []);
   }
 
   protected function getMenuResourceObject(MenuInterface $menu) {

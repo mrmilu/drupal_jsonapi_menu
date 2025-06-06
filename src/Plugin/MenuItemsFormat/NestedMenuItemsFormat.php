@@ -3,15 +3,24 @@
 namespace Drupal\jsonapi_menu\Plugin\MenuItemsFormat;
 
 use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
+use Drupal\Core\Entity\EntityRepositoryInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Field\FieldConfigInterface;
 use Drupal\Core\GeneratedUrl;
 use Drupal\Core\Menu\MenuLinkInterface;
 use Drupal\Core\Menu\MenuLinkTreeElement;
+use Drupal\Core\Menu\MenuLinkTreeInterface;
 use Drupal\Core\Menu\MenuTreeParameters;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\jsonapi\JsonApiResource\ResourceObject;
+use Drupal\jsonapi\ResourceType\ResourceTypeRepositoryInterface;
 use Drupal\jsonapi_menu\Plugin\MenuItemsFormatBase;
 use Drupal\menu_link_content\MenuLinkContentInterface;
 use Drupal\system\MenuInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\Serializer\SerializerInterface;
 
 /**
  * Plugin implementation of the 'nested' format.
@@ -20,7 +29,8 @@ use Drupal\system\MenuInterface;
  *   id = "nested"
  * )
  */
-class NestedMenuItemsFormat extends MenuItemsFormatBase {
+class NestedMenuItemsFormat extends MenuItemsFormatBase implements ContainerFactoryPluginInterface {
+
   /**
    * Drupal\Core\Menu\MenuLinkTreeInterface definition.
    *
@@ -72,16 +82,45 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
 
   static array $resourceTypeCache = [];
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition) {
+  /**
+   * @param array $configuration
+   * @param $plugin_id
+   * @param $plugin_definition
+   * @param \Drupal\Core\Menu\MenuLinkTreeInterface $menuLinkTree
+   * @param \Drupal\Core\Extension\ModuleHandlerInterface $moduleHandler
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
+   * @param \Symfony\Component\Serializer\SerializerInterface $serializer
+   * @param \Drupal\jsonapi\ResourceType\ResourceTypeRepositoryInterface $resourceTypeRepository
+   * @param \Drupal\Core\Entity\EntityRepositoryInterface $entityRepository
+   * @param \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager
+   */
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, MenuLinkTreeInterface $menuLinkTree, ModuleHandlerInterface $moduleHandler, EntityTypeManagerInterface $entityTypeManager, SerializerInterface $serializer, ResourceTypeRepositoryInterface $resourceTypeRepository, EntityRepositoryInterface $entityRepository, EntityFieldManagerInterface $entityFieldManager) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->menuLinkTree = $menuLinkTree;
+    $this->moduleHandler = $moduleHandler;
+    $this->entityTypeManager = $entityTypeManager;
+    $this->serializer = $serializer;
+    $this->resourceTypeRepository = $resourceTypeRepository;
+    $this->entityRepository = $entityRepository;
+    $this->entityFieldManager = $entityFieldManager;
+  }
 
-    $this->menuLinkTree = \Drupal::service('menu.link_tree');
-    $this->moduleHandler = \Drupal::service('module_handler');
-    $this->entityTypeManager = \Drupal::service('entity_type.manager');
-    $this->serializer = \Drupal::service('jsonapi.serializer');
-    $this->resourceTypeRepository = \Drupal::service('jsonapi.resource_type.repository');
-    $this->entityRepository = \Drupal::service('entity.repository');
-    $this->entityFieldManager = \Drupal::service('entity_field.manager');
+  /**
+   * {@inheritDoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('menu.link_tree'),
+      $container->get('module_handler'),
+      $container->get('entity_type.manager'),
+      $container->get('jsonapi.serializer'),
+      $container->get('jsonapi.resource_type.repository'),
+      $container->get('entity.repository'),
+      $container->get('entity_field.manager'),
+    );
   }
 
   /**
@@ -134,7 +173,10 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
     $cache->addCacheableDependency($url);
 
     $id = $menuLink->getPluginId();
-    [$plugin, $menuLinkEntityId] = explode(':', $id);
+    $plugin = '';
+    if (strpos($id, ':') !== FALSE) {
+      [$plugin, $menuLinkEntityId] = explode(':', $id);
+    }
 
     $data = [
       'id' => $id,
@@ -159,6 +201,7 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
     if ($plugin === 'menu_link_content') {
       /* @var $menuLinkContentEntity MenuLinkContentInterface */
       $menuLinkContentEntity = $this->entityRepository->loadEntityByUuid('menu_link_content', $menuLinkEntityId);
+      $menuLinkContentEntity = $this->entityRepository->getTranslationFromContext($menuLinkContentEntity);
 
       $this->addMenuLinkContentFieldValues($menuLink, $menuLinkContentEntity, $data);
       $data['uri'] = $menuLinkContentEntity->link->uri;
@@ -212,6 +255,11 @@ class NestedMenuItemsFormat extends MenuItemsFormatBase {
         $field = $menuLinkContentEntity->get($key);
         $normalization = $this->serializer->normalize($field, 'api_json', ['resource_object' => $resourceObject]);
         $data[$key] = $normalization->getNormalization();
+        /** @var \Drupal\Core\Entity\EntityInterface $entity */
+        if ($entity = $field->entity) {
+          $data[$key]['type'] = $entity->getEntityTypeId() . '--' . $entity->bundle();
+          $data[$key]['id'] = $entity->uuid();
+        }
       }
     }
   }

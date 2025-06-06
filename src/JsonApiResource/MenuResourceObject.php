@@ -10,8 +10,8 @@ use Drupal\system\MenuInterface;
 
 class MenuResourceObject extends ResourceObject {
   public function __construct(MenuInterface $entity, ResourceType $resource_type, $menuItems) {
-    $cacheability = new CacheableMetadata();
-    $cacheability->addCacheableDependency(NULL);
+    $cacheability = CacheableMetadata::createFromObject($entity);
+    $this->addMenuItemsCacheTags($cacheability, $menuItems);
 
     $fields = static::extractFieldsFromEntity($resource_type, $entity);
     $fields['items'] = $menuItems;
@@ -25,5 +25,25 @@ class MenuResourceObject extends ResourceObject {
       new LinkCollection([]),
       $entity->language()
     );
+  }
+
+  /**
+   * Add menu items cache tags.
+   *
+   * @param \Drupal\Core\Cache\CacheableMetadata $cacheability
+   * @param array $items
+   *
+   * @return void
+   */
+  private function addMenuItemsCacheTags(CacheableMetadata &$cacheability, array $items): void {
+    foreach ($items as $item) {
+      if (!isset($item['meta']['entity_id'])) {
+        continue;
+      }
+      $cacheability->addCacheTags(['menu_link_content:' . $item['meta']['entity_id']]);
+      if (isset($item['below']) && is_array($item['below'])) {
+        $this->addMenuItemsCacheTags($cacheability, $item['below']);
+      }
+    }
   }
 }

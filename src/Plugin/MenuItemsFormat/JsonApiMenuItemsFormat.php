@@ -3,12 +3,20 @@
 namespace Drupal\jsonapi_menu\Plugin\MenuItemsFormat;
 
 use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\Core\Entity\EntityRepositoryInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Menu\MenuLinkInterface;
+use Drupal\Core\Menu\MenuLinkTreeInterface;
 use Drupal\Core\Menu\MenuTreeParameters;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\jsonapi\JsonApiResource\ResourceObject;
 use Drupal\jsonapi\JsonApiResource\ResourceObjectData;
+use Drupal\jsonapi\ResourceType\ResourceTypeRepositoryInterface;
 use Drupal\jsonapi_menu\Plugin\MenuItemsFormatBase;
 use Drupal\system\MenuInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\Serializer\SerializerInterface;
 
 /**
  * Plugin implementation of the 'json_api' format.
@@ -17,7 +25,7 @@ use Drupal\system\MenuInterface;
  *   id = "json_api"
  * )
  */
-class JsonApiMenuItemsFormat extends MenuItemsFormatBase {
+class JsonApiMenuItemsFormat extends MenuItemsFormatBase implements ContainerFactoryPluginInterface {
   /**
    * Drupal\Core\Menu\MenuLinkTreeInterface definition.
    *
@@ -53,16 +61,50 @@ class JsonApiMenuItemsFormat extends MenuItemsFormatBase {
    */
   protected $resourceTypeRepository;
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
+  /**
+   * The entity respository.
+   *
+   * @var \Drupal\Core\Entity\EntityRepositoryInterface
+   */
+  protected $entityRepository;
 
-    $this->menuLinkTree = \Drupal::service('menu.link_tree');
-    $this->moduleHandler = \Drupal::service('module_handler');
-    $this->entityTypeManager = \Drupal::service('entity_type.manager');
-    $this->serializer = \Drupal::service('jsonapi.serializer');
-    $this->resourceTypeRepository = \Drupal::service('jsonapi.resource_type.repository');
+  /**
+   * @param array $configuration
+   * @param $plugin_id
+   * @param $plugin_definition
+   * @param \Drupal\Core\Menu\MenuLinkTreeInterface $menuLinkTree
+   * @param \Drupal\Core\Extension\ModuleHandlerInterface $moduleHandler
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
+   * @param \Symfony\Component\Serializer\SerializerInterface $serializer
+   * @param \Drupal\jsonapi\ResourceType\ResourceTypeRepositoryInterface $resourceTypeRepository
+   * @param \Drupal\Core\Entity\EntityRepositoryInterface $entityRepository
+   */
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, MenuLinkTreeInterface $menuLinkTree, ModuleHandlerInterface $moduleHandler, EntityTypeManagerInterface $entityTypeManager, SerializerInterface $serializer, ResourceTypeRepositoryInterface $resourceTypeRepository, EntityRepositoryInterface $entityRepository) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->menuLinkTree = $menuLinkTree;
+    $this->moduleHandler = $moduleHandler;
+    $this->entityTypeManager = $entityTypeManager;
+    $this->serializer = $serializer;
+    $this->resourceTypeRepository = $resourceTypeRepository;
+    $this->entityRepository = $entityRepository;
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('menu.link_tree'),
+      $container->get('module_handler'),
+      $container->get('entity_type.manager'),
+      $container->get('jsonapi.serializer'),
+      $container->get('jsonapi.resource_type.repository'),
+      $container->get('entity.repository'),
+    );
+  }
 
   protected function getMenuItemResourceType(MenuLinkInterface $menuLink) {
     if ($this->moduleHandler->moduleExists('menu_item_extras')) {
@@ -119,6 +161,7 @@ class JsonApiMenuItemsFormat extends MenuItemsFormatBase {
         ->loadByProperties(['uuid' => $menuLinkEntityId])
       ;
       $menuLinkEntity = reset($query);
+      $menuLinkEntity = $this->entityRepository->getTranslationFromContext($menuLinkEntity);
       $items[] = ResourceObject::createFromEntity($resourceType, $menuLinkEntity);
 
       if ($menuTreeLink->subtree) {

@@ -156,13 +156,31 @@ class JsonApiMenuItemsFormat extends MenuItemsFormatBase implements ContainerFac
       $id = $menuLink->getPluginId();
       [$plugin, $menuLinkEntityId] = explode(':', $id);
 
-      $query = $this->entityTypeManager
-        ->getStorage('menu_link_content')
-        ->loadByProperties(['uuid' => $menuLinkEntityId])
-      ;
-      $menuLinkEntity = reset($query);
-      $menuLinkEntity = $this->entityRepository->getTranslationFromContext($menuLinkEntity);
-      $items[] = ResourceObject::createFromEntity($resourceType, $menuLinkEntity);
+      if (!empty($menuLinkEntityId)) {
+        $query = $this->entityTypeManager
+          ->getStorage('menu_link_content')
+          ->loadByProperties(['uuid' => $menuLinkEntityId]);
+        $menuLinkEntity = reset($query);
+        $menuLinkEntity = $this->entityRepository->getTranslationFromContext($menuLinkEntity);
+        $items[] = ResourceObject::createFromEntity($resourceType, $menuLinkEntity);
+      }
+      else {
+        $url = $menuLink->getUrlObject()->toString();
+
+        $items[] = new ResourceObject(
+          $cache,
+          $resourceType,
+          crypt($menuLink->getPluginId(), 'salt'),
+          NULL,
+          [
+            'title' => $menuLink->getTitle(),
+            'url' => $url,
+            'weight' => $menuLink->getWeight(),
+            'enabled' => $menuLink->isEnabled(),
+          ],
+          new \Drupal\jsonapi\JsonApiResource\LinkCollection([])
+        );
+      }
 
       if ($menuTreeLink->subtree) {
         $this->buildRecursive($menuTreeLink->subtree, $items, $cache);

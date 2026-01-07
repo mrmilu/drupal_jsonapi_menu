@@ -1,7 +1,7 @@
 name: 'JSON:API Menu'
 description: Adds a JSON API resource for menu with items.
 type: module
-core_version_requirement: ^9 || ^10
+core_version_requirement: ^10 || ^11
 dependencies:
   - drupal:menu_link_content
   - jsonapi_resources:jsonapi_resources
